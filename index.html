@@ -1,0 +1,1290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MVCRP v1.0 — Interactive Stress Test</title>
+  <!--
+    Standalone visualization companion to the MVCRP paper.
+    Interactive stress-test artifact: explores an eight-event incident graph
+    for independently governed responders. No backend, no external assets.
+  -->
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --bg-panel: #ffffff;
+      --bg-soft: #eef1f8;
+      --map-bg: #121826;
+      --map-grid: rgba(148, 163, 184, 0.08);
+      --text: #1e2433;
+      --text-muted: #5b657a;
+      --text-dim: #8b95a8;
+      --text-on-dark: #e8eef8;
+      --text-on-dark-muted: #9aa6bd;
+      --blue: #2f6fed;
+      --blue-soft: rgba(47, 111, 237, 0.14);
+      --purple: #7c3aed;
+      --purple-soft: rgba(124, 58, 237, 0.16);
+      --indigo: #4f46e5;
+      --teal: #0d9488;
+      --teal-soft: rgba(13, 148, 136, 0.16);
+      --border: #d8dee9;
+      --border-strong: #c2cbda;
+      --shadow: 0 1px 2px rgba(30, 36, 51, 0.05);
+      --font-display: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, monospace;
+      --pad: 1rem;
+      --gap: 0.85rem;
+      --transition: 280ms ease;
+
+      /* semantic aliases used by JS class names */
+      --cyan: var(--blue);
+      --violet: var(--purple);
+      --amber: var(--indigo);
+      --green: var(--teal);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: var(--font-display);
+      color: var(--text);
+      background-color: var(--bg);
+      background-image:
+        linear-gradient(rgba(47, 111, 237, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124, 58, 237, 0.035) 1px, transparent 1px);
+      background-size: 40px 40px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shell {
+      width: min(1080px, 100%);
+      margin: 0 auto;
+      padding: 1.35rem 1.15rem 2rem;
+      display: flex;
+      flex-direction: column;
+      gap: var(--gap);
+    }
+
+    .panel {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    /* —— Header —— */
+    header.orient {
+      width: 100%;
+      padding: var(--pad);
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .proto-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.45rem 0.85rem;
+      margin: 0 0 0.55rem;
+    }
+
+    .proto-brand {
+      min-width: 0;
+      flex: 1 1 14rem;
+    }
+
+    .proto-label {
+      font-family: var(--font-mono);
+      font-size: 0.68rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin: 0 0 0.25rem;
+    }
+
+    .proto-fullname {
+      margin: 0;
+      font-size: 0.72rem;
+      line-height: 1.35;
+      color: var(--text-muted);
+      max-width: 34rem;
+    }
+
+    .proto-link {
+      font-family: var(--font-mono);
+      font-size: 0.66rem;
+      letter-spacing: 0.04em;
+      color: var(--purple);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(124, 58, 237, 0.35);
+      padding-bottom: 1px;
+      white-space: nowrap;
+      margin-top: 0.15rem;
+    }
+
+    .proto-link:hover,
+    .proto-link:focus-visible {
+      color: var(--blue);
+      border-bottom-color: var(--blue);
+      outline: none;
+    }
+
+    header.orient h1 {
+      margin: 0 0 0.45rem;
+      font-size: clamp(1.2rem, 2.8vw, 1.55rem);
+      font-weight: 650;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+    }
+
+    .lede {
+      margin: 0 0 0.75rem;
+      font-size: 0.86rem;
+      color: var(--text-muted);
+    }
+
+    .boundary {
+      display: flex;
+      gap: 0.65rem;
+      align-items: flex-start;
+      width: 100%;
+      padding: 0.65rem 0.75rem;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--purple);
+      background: var(--bg-soft);
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+
+    .boundary-mark {
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.08em;
+      color: var(--purple);
+      margin-top: 0.12rem;
+      font-weight: 700;
+    }
+
+    /* —— Simulator row: graph + timeline —— */
+    .sim-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 220px;
+      gap: var(--gap);
+      width: 100%;
+      align-items: stretch;
+    }
+
+    .stage {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    .stage-label {
+      display: block;
+      padding: 0.55rem var(--pad) 0.35rem;
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      background: var(--bg-panel);
+    }
+
+    .graph-wrap {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      min-height: 280px;
+      aspect-ratio: 16 / 10;
+      max-height: 360px;
+      background-color: var(--map-bg);
+      background-image:
+        linear-gradient(var(--map-grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--map-grid) 1px, transparent 1px),
+        radial-gradient(ellipse 45% 40% at 18% 50%, rgba(47, 111, 237, 0.18), transparent 70%),
+        radial-gradient(ellipse 40% 40% at 52% 28%, rgba(124, 58, 237, 0.14), transparent 70%),
+        radial-gradient(ellipse 40% 40% at 82% 72%, rgba(13, 148, 136, 0.12), transparent 70%);
+      background-size: 32px 32px, 32px 32px, 100% 100%, 100% 100%, 100% 100%;
+    }
+
+    .graph-legend {
+      position: absolute;
+      left: 0.55rem;
+      bottom: 0.5rem;
+      z-index: 2;
+      margin: 0;
+      padding: 0.4rem 0.5rem;
+      list-style: none;
+      background: rgba(18, 24, 38, 0.88);
+      border: 1px solid rgba(148, 163, 184, 0.22);
+      font-family: var(--font-mono);
+      font-size: 0.58rem;
+      line-height: 1.45;
+      color: #cbd5e1;
+      pointer-events: none;
+      max-width: calc(100% - 1.1rem);
+    }
+
+    .graph-legend li {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      white-space: nowrap;
+    }
+
+    .graph-legend .swatch {
+      flex-shrink: 0;
+      width: 14px;
+      height: 0;
+      border-top: 2px solid currentColor;
+    }
+
+    .graph-legend .swatch.cyan { color: #60a5fa; border-top-style: solid; }
+    .graph-legend .swatch.violet { color: #a78bfa; border-top-style: dashed; }
+    .graph-legend .swatch.teal { color: #2dd4bf; border-top-style: solid; }
+    .graph-legend .swatch.indigo { color: #818cf8; border-top-style: solid; }
+
+    .incident-svg {
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+
+    .seg {
+      fill: none;
+      stroke: #4b5568;
+      stroke-width: 2;
+      stroke-linecap: round;
+      opacity: 0.55;
+      transition: stroke var(--transition), opacity var(--transition), stroke-width var(--transition);
+    }
+
+    .seg.active {
+      opacity: 1;
+      stroke: #60a5fa;
+      stroke-width: 2.75;
+    }
+
+    .seg.disputed {
+      opacity: 1;
+      stroke: #a78bfa;
+      stroke-width: 2.75;
+      stroke-dasharray: 8 6;
+    }
+
+    .seg.escalated {
+      opacity: 1;
+      stroke: #818cf8;
+      stroke-width: 2.75;
+    }
+
+    .seg.contained {
+      opacity: 1;
+      stroke: #2dd4bf;
+      stroke-width: 2.75;
+    }
+
+    .seg-flow {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 2.5;
+      stroke-linecap: round;
+      stroke-dasharray: 6 14;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity var(--transition);
+    }
+
+    .seg-flow.on {
+      opacity: 0.9;
+      stroke: currentColor;
+      animation: flow-dash 1.15s linear infinite;
+    }
+
+    .seg-flow.cyan { color: #60a5fa; }
+    .seg-flow.violet { color: #a78bfa; }
+    .seg-flow.amber { color: #818cf8; }
+    .seg-flow.green { color: #2dd4bf; }
+
+    @keyframes flow-dash {
+      to { stroke-dashoffset: -20; }
+    }
+
+    .node-group { transition: opacity var(--transition); }
+    .node-group.idle { opacity: 0.4; }
+    .node-group.active { opacity: 1; }
+
+    .node-halo {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 1.5;
+      opacity: 0;
+      transform-box: fill-box;
+      transform-origin: center;
+      transition: opacity var(--transition), stroke var(--transition);
+    }
+
+    .node-group.active .node-halo {
+      opacity: 0.7;
+      animation: pulse-halo 2s ease-in-out infinite;
+    }
+
+    .node-group.active.tone-cyan .node-halo { stroke: #60a5fa; }
+    .node-group.active.tone-violet .node-halo { stroke: #a78bfa; }
+    .node-group.active.tone-green .node-halo { stroke: #2dd4bf; }
+    .node-group.active.tone-amber .node-halo { stroke: #818cf8; }
+
+    @keyframes pulse-halo {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 0.8; transform: scale(1.1); }
+    }
+
+    .node-body {
+      fill: #1c2436;
+      stroke: #64748b;
+      stroke-width: 1.5;
+      transition: fill var(--transition), stroke var(--transition);
+    }
+
+    .node-group.active.tone-cyan .node-body {
+      stroke: #60a5fa;
+      fill: #1a2740;
+    }
+
+    .node-group.active.tone-violet .node-body {
+      stroke: #a78bfa;
+      fill: #241c3a;
+    }
+
+    .node-group.active.tone-green .node-body {
+      stroke: #2dd4bf;
+      fill: #142a2a;
+    }
+
+    .node-group.active.tone-amber .node-body {
+      stroke: #818cf8;
+      fill: #1c1f3d;
+    }
+
+    .node-id {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      fill: var(--text-on-dark);
+      letter-spacing: 0.06em;
+    }
+
+    .node-name {
+      font-family: var(--font-display);
+      font-size: 8.5px;
+      fill: var(--text-on-dark-muted);
+    }
+
+    .node-scope {
+      font-family: var(--font-display);
+      font-size: 8.5px;
+      fill: #7b879c;
+    }
+
+    .node-group.active.tone-cyan .node-id { fill: #93c5fd; }
+    .node-group.active.tone-violet .node-id { fill: #c4b5fd; }
+    .node-group.active.tone-green .node-id { fill: #5eead4; }
+    .node-group.active.tone-amber .node-id { fill: #a5b4fc; }
+
+    /* —— State strip —— */
+    .state-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.45rem;
+      padding: 0.65rem var(--pad);
+      border-top: 1px solid var(--border);
+      background: var(--bg-soft);
+    }
+
+    .state-cell {
+      padding: 0.45rem 0.5rem;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      min-width: 0;
+    }
+
+    .state-dim {
+      font-family: var(--font-mono);
+      font-size: 0.55rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      margin: 0 0 0.2rem;
+    }
+
+    .state-value {
+      font-size: 0.78rem;
+      font-weight: 650;
+      letter-spacing: 0.03em;
+      margin: 0;
+      transition: color var(--transition);
+      word-break: break-word;
+    }
+
+    .state-value[data-tone="cyan"] { color: var(--blue); }
+    .state-value[data-tone="violet"] { color: var(--purple); }
+    .state-value[data-tone="green"] { color: var(--teal); }
+    .state-value[data-tone="amber"] { color: var(--indigo); }
+    .state-value[data-tone="muted"] { color: var(--text-muted); }
+
+    /* —— Vertical timeline (right rail) —— */
+    .timeline-block {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      padding: 0.75rem 0.7rem 0.75rem 0.65rem;
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .timeline-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+      margin-bottom: 0.7rem;
+      padding: 0 0.25rem;
+    }
+
+    .timeline-meta h2 {
+      margin: 0;
+      font-size: 0.6rem;
+      font-family: var(--font-mono);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .event-counter {
+      font-family: var(--font-mono);
+      font-size: 0.72rem;
+      color: var(--blue);
+      font-weight: 650;
+      margin: 0;
+    }
+
+    .timeline {
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      flex: 1;
+      gap: 0;
+      min-height: 0;
+      padding: 0.15rem 0;
+    }
+
+    .timeline-track {
+      position: absolute;
+      top: 10px;
+      bottom: 10px;
+      left: 17px;
+      width: 2px;
+      background: var(--border);
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .timeline-progress {
+      position: absolute;
+      top: 10px;
+      left: 17px;
+      width: 2px;
+      height: 0;
+      background: linear-gradient(180deg, var(--blue), var(--purple));
+      z-index: 0;
+      pointer-events: none;
+      transition: height var(--transition);
+    }
+
+    .tl-btn {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 20px 1fr;
+      align-items: center;
+      gap: 0.55rem;
+      width: 100%;
+      padding: 0.28rem 0.3rem;
+      margin: 0;
+      border: none;
+      border-radius: 2px;
+      background: transparent;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-family: inherit;
+      text-align: left;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .tl-btn:hover {
+      background: var(--bg-soft);
+    }
+
+    .tl-btn:focus-visible {
+      outline: 2px solid var(--blue);
+      outline-offset: 1px;
+    }
+
+    .tl-dot {
+      width: 12px;
+      height: 12px;
+      margin-left: 4px;
+      border-radius: 50%;
+      border: 2px solid var(--border-strong);
+      background: var(--bg-panel);
+      transition: border-color var(--transition), background var(--transition), transform var(--transition);
+    }
+
+    .tl-label {
+      font-size: 0.72rem;
+      line-height: 1.25;
+      transition: color var(--transition);
+      min-width: 0;
+    }
+
+    .tl-num {
+      display: inline;
+      font-family: var(--font-mono);
+      font-size: 0.62rem;
+      letter-spacing: 0.04em;
+      margin-right: 0.35rem;
+      opacity: 0.8;
+    }
+
+    .tl-word {
+      color: inherit;
+    }
+
+    .tl-btn:hover .tl-dot {
+      border-color: var(--blue);
+    }
+
+    .tl-btn[aria-pressed="true"] {
+      background: var(--blue-soft);
+    }
+
+    .tl-btn[aria-pressed="true"] .tl-dot {
+      border-color: var(--blue);
+      background: var(--blue);
+      transform: scale(1.08);
+    }
+
+    .tl-btn[aria-pressed="true"] .tl-label {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .tl-btn[aria-pressed="true"] .tl-num {
+      color: var(--blue);
+      opacity: 1;
+    }
+
+    /* —— Detail —— */
+    .detail {
+      width: 100%;
+      padding: var(--pad);
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+    }
+
+    .detail-kicker {
+      font-family: var(--font-mono);
+      font-size: 0.64rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--blue);
+      margin: 0 0 0.3rem;
+    }
+
+    .detail-title {
+      margin: 0 0 0.4rem;
+      font-size: 1.02rem;
+      font-weight: 650;
+      letter-spacing: -0.01em;
+    }
+
+    .detail-question {
+      margin: 0 0 0.55rem;
+      font-size: 0.86rem;
+      color: var(--purple);
+      font-style: italic;
+    }
+
+    .detail-story {
+      margin: 0 0 0.85rem;
+      font-size: 0.86rem;
+      color: var(--text-muted);
+    }
+
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.65rem;
+    }
+
+    .detail-block {
+      padding: 0.65rem 0.7rem;
+      border: 1px solid var(--border);
+      background: var(--bg-soft);
+      min-width: 0;
+    }
+
+    .detail-block h3 {
+      margin: 0 0 0.3rem;
+      font-family: var(--font-mono);
+      font-size: 0.56rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      font-weight: 500;
+    }
+
+    .detail-block p {
+      margin: 0;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+
+    .pass-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.55rem;
+    }
+
+    .pass-badge {
+      flex-shrink: 0;
+      font-family: var(--font-mono);
+      font-size: 0.58rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #fff;
+      background: var(--teal);
+      padding: 0.2rem 0.4rem;
+      line-height: 1.2;
+      white-space: nowrap;
+    }
+
+    /* —— Synthesis —— */
+    .synthesis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--gap);
+    }
+
+    .syn-block {
+      padding: 0.8rem var(--pad);
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+      border-top: 3px solid var(--blue);
+      min-width: 0;
+    }
+
+    .syn-block:nth-child(2) { border-top-color: var(--purple); }
+    .syn-block:nth-child(3) { border-top-color: var(--indigo); }
+
+    .syn-metric {
+      font-family: var(--font-mono);
+      font-size: 1.15rem;
+      font-weight: 650;
+      margin: 0 0 0.25rem;
+    }
+
+    .syn-block:nth-child(1) .syn-metric { color: var(--blue); }
+    .syn-block:nth-child(2) .syn-metric { color: var(--purple); }
+    .syn-block:nth-child(3) .syn-metric { color: var(--indigo); }
+
+    .syn-text {
+      margin: 0;
+      font-size: 0.74rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+
+    /* —— Sources & authors —— */
+    footer.credit {
+      width: 100%;
+      padding: 0.75rem var(--pad);
+      border: 1px solid var(--border);
+      background: var(--bg-panel);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 0.55rem 1.25rem;
+    }
+
+    .credit-team {
+      margin: 0;
+      font-size: 0.76rem;
+      color: var(--text-muted);
+    }
+
+    .credit-support {
+      margin: 0.25rem 0 0;
+      font-size: 0.7rem;
+    }
+
+    .credit-support a {
+      color: var(--text-dim);
+      text-decoration: none;
+      border-bottom: 1px solid rgba(139, 149, 168, 0.45);
+    }
+
+    .credit-support a:hover,
+    .credit-support a:focus-visible {
+      color: var(--purple);
+      border-bottom-color: var(--purple);
+      outline: none;
+    }
+
+    .credit-meta {
+      margin: 0;
+      font-size: 0.66rem;
+      color: var(--text-dim);
+      font-family: var(--font-mono);
+      letter-spacing: 0.04em;
+    }
+
+    /* —— Responsive —— */
+    @media (max-width: 820px) {
+      .sim-row {
+        grid-template-columns: 1fr;
+      }
+
+      .timeline-block {
+        order: -1;
+      }
+
+      .timeline {
+        flex-direction: row;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        gap: 0.15rem;
+        padding-bottom: 0.25rem;
+        min-height: auto;
+      }
+
+      .timeline-track {
+        top: 16px;
+        bottom: auto;
+        left: 12px;
+        right: 12px;
+        width: auto;
+        height: 2px;
+      }
+
+      .timeline-progress {
+        top: 16px;
+        bottom: auto;
+        left: 12px;
+        width: 0;
+        height: 2px;
+      }
+
+      .tl-btn {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.35rem;
+        min-width: 4.2rem;
+        flex: 1 0 auto;
+        padding: 0.2rem;
+        text-align: center;
+      }
+
+      .tl-dot {
+        margin-left: 0;
+      }
+
+      .tl-label {
+        font-size: 0.62rem;
+      }
+
+      .tl-num {
+        display: block;
+        margin: 0 0 0.1rem;
+      }
+
+      .graph-wrap {
+        max-height: none;
+        aspect-ratio: 5 / 4;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .state-strip,
+      .detail-grid,
+      .synthesis {
+        grid-template-columns: 1fr;
+      }
+
+      .shell {
+        padding: 1rem 0.8rem 1.6rem;
+      }
+
+      footer.credit {
+        flex-direction: column;
+      }
+
+      .graph-legend {
+        font-size: 0.52rem;
+        padding: 0.3rem 0.4rem;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+
+      *,
+      *::before,
+      *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+
+      .seg-flow.on {
+        animation: none;
+        opacity: 0.55;
+        stroke-dasharray: 4 8;
+      }
+
+      .node-group.active .node-halo {
+        animation: none;
+        opacity: 0.55;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="orient">
+      <div class="proto-row">
+        <div class="proto-brand">
+          <p class="proto-label">MVCRP v1.0</p>
+          <p class="proto-fullname">Minimum Viable Cross-Border Response Protocol for Agentic AI Incidents</p>
+        </div>
+        <a class="proto-link" href="https://github.com/A-nd-I/MVCRP-Minimum-Viable-Cross-Border-Response-Protocol-for-Agentic-AI-Incidents/blob/main/MVCRP_1.0.pdf" target="_blank" rel="noopener noreferrer">Read the framework</a>
+      </div>
+      <h1>Follow the incident. Watch the protocol hold.</h1>
+      <p class="lede">
+        A visual test of whether independently governed responders can coordinate a propagating agentic-AI incident without a global commander, complete attribution or unrestricted evidence sharing.
+      </p>
+      <aside class="boundary" role="note">
+        <span class="boundary-mark" aria-hidden="true">BOUND</span>
+        <span>Simulated cross-jurisdictional stress test grounded in the public OpenAI–Hugging Face incident sequence. It does not claim that Colombia or China were involved in that incident.</span>
+      </aside>
+    </header>
+
+    <div class="sim-row">
+      <section class="stage panel" aria-label="Incident graph">
+        <span class="stage-label">Incident graph</span>
+        <div class="graph-wrap">
+          <svg class="incident-svg" viewBox="0 0 800 380" role="img" aria-labelledby="graph-title graph-desc">
+            <title id="graph-title">MVCRP incident propagation graph</title>
+            <desc id="graph-desc">Three independently governed nodes connected by two propagation segments. Active elements update with the selected stress event.</desc>
+
+            <g opacity="0.22" stroke="#64748b" stroke-width="0.6" fill="none" aria-hidden="true">
+              <circle cx="140" cy="190" r="78" />
+              <circle cx="400" cy="120" r="62" />
+              <circle cx="640" cy="270" r="74" />
+              <path d="M140 190 L400 120 L640 270" />
+            </g>
+
+            <path id="path-s1" class="seg" d="M220 185 C 285 150, 310 125, 360 115" />
+            <path id="flow-s1" class="seg-flow cyan" d="M220 185 C 285 150, 310 125, 360 115" />
+
+            <path id="path-s2" class="seg" d="M440 125 C 520 150, 560 200, 590 245" />
+            <path id="flow-s2" class="seg-flow cyan" d="M440 125 C 520 150, 560 200, 590 245" />
+
+            <g id="node-n1" class="node-group idle tone-cyan" transform="translate(140, 190)">
+              <circle class="node-halo" r="44" />
+              <rect class="node-body" x="-78" y="-36" width="156" height="72" rx="2" />
+              <text class="node-id" text-anchor="middle" y="-10">N1</text>
+              <text class="node-name" text-anchor="middle" y="8">Simulated U.S. originator</text>
+              <text class="node-scope" text-anchor="middle" y="24">agent environment</text>
+            </g>
+
+            <g id="node-n2" class="node-group idle tone-cyan" transform="translate(400, 110)">
+              <circle class="node-halo" r="44" />
+              <rect class="node-body" x="-78" y="-36" width="156" height="72" rx="2" />
+              <text class="node-id" text-anchor="middle" y="-10">N2</text>
+              <text class="node-name" text-anchor="middle" y="8">Simulated Colombia</text>
+              <text class="node-scope" text-anchor="middle" y="24">operator workload</text>
+            </g>
+
+            <g id="node-n3" class="node-group idle tone-cyan" transform="translate(640, 270)">
+              <circle class="node-halo" r="44" />
+              <rect class="node-body" x="-78" y="-36" width="156" height="72" rx="2" />
+              <text class="node-id" text-anchor="middle" y="-10">N3</text>
+              <text class="node-name" text-anchor="middle" y="8">Simulated China</text>
+              <text class="node-scope" text-anchor="middle" y="24">downstream operator</text>
+            </g>
+          </svg>
+          <ul class="graph-legend" aria-label="Graph legend">
+            <li><span class="swatch cyan" aria-hidden="true"></span> Cyan solid: active / supported segment</li>
+            <li><span class="swatch violet" aria-hidden="true"></span> Violet dashed: disputed causal segment</li>
+            <li><span class="swatch teal" aria-hidden="true"></span> Teal: contained local scope</li>
+            <li><span class="swatch indigo" aria-hidden="true"></span> Indigo: escalated local severity</li>
+          </ul>
+        </div>
+
+        <div class="state-strip" aria-live="polite" aria-atomic="true">
+          <div class="state-cell">
+            <p class="state-dim">Causal status</p>
+            <p class="state-value" id="state-causal" data-tone="muted">LOCAL</p>
+          </div>
+          <div class="state-cell">
+            <p class="state-dim">Operational status</p>
+            <p class="state-value" id="state-ops" data-tone="amber">ESCAPED</p>
+          </div>
+          <div class="state-cell">
+            <p class="state-dim">Coordination status</p>
+            <p class="state-value" id="state-coord" data-tone="muted">DORMANT</p>
+          </div>
+        </div>
+      </section>
+
+      <nav class="timeline-block" aria-label="Stress event timeline">
+        <div class="timeline-meta">
+          <h2>Stress timeline</h2>
+          <p class="event-counter" id="event-counter" aria-live="polite">Event 1 of 8</p>
+        </div>
+        <div class="timeline" role="group" aria-label="Select stress event">
+          <div class="timeline-track" aria-hidden="true"></div>
+          <div class="timeline-progress" id="timeline-progress" aria-hidden="true"></div>
+          <button type="button" class="tl-btn" data-event="1" aria-pressed="true" aria-label="E1 Escape">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E1</span><span class="tl-word">Escape</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="2" aria-pressed="false" aria-label="E2 Compromise">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E2</span><span class="tl-word">Compromise</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="3" aria-pressed="false" aria-label="E3 Targeting">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E3</span><span class="tl-word">Targeting</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="4" aria-pressed="false" aria-label="E4 Expansion">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E4</span><span class="tl-word">Expansion</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="5" aria-pressed="false" aria-label="E5 Containment">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E5</span><span class="tl-word">Containment</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="6" aria-pressed="false" aria-label="E6 Reconstruct">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E6</span><span class="tl-word">Reconstruct</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="7" aria-pressed="false" aria-label="E7 Exchange">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E7</span><span class="tl-word">Exchange</span></span>
+          </button>
+          <button type="button" class="tl-btn" data-event="8" aria-pressed="false" aria-label="E8 Verify">
+            <span class="tl-dot" aria-hidden="true"></span>
+            <span class="tl-label"><span class="tl-num">E8</span><span class="tl-word">Verify</span></span>
+          </button>
+        </div>
+      </nav>
+    </div>
+
+    <article class="detail" id="event-detail" aria-live="polite">
+      <p class="detail-kicker" id="detail-kicker">E1 · Stress event</p>
+      <h2 class="detail-title" id="detail-title">Containment escape</h2>
+      <p class="detail-question" id="detail-question">Does escape alone trigger cross-border coordination?</p>
+      <p class="detail-story" id="detail-story">The agent leaves its initial environment. Is that alone enough to turn a local event into a cross-border incident?</p>
+      <div class="detail-grid">
+        <div class="detail-block">
+          <h3>Protocol response</h3>
+          <p id="detail-protocol">Keep the graph local until there is a relevant cross-domain nexus or credible downstream exposure.</p>
+        </div>
+        <div class="detail-block">
+          <h3>Design result</h3>
+          <div class="pass-row">
+            <span class="pass-badge">DESIGN HOLDS</span>
+            <p id="detail-result">Activation threshold prevents premature international escalation.</p>
+          </div>
+        </div>
+      </div>
+    </article>
+
+    <section class="synthesis" aria-label="Protocol synthesis">
+      <div class="syn-block">
+        <p class="syn-metric">8 / 8</p>
+        <p class="syn-text">Predictable failure modes tested without a global authority.</p>
+      </div>
+      <div class="syn-block">
+        <p class="syn-metric">3 states</p>
+        <p class="syn-text">Causal, operational and coordination state remain separate.</p>
+      </div>
+      <div class="syn-block">
+        <p class="syn-metric">1 boundary</p>
+        <p class="syn-text">This is a structured simulation, not factual attribution beyond the public incident.</p>
+      </div>
+    </section>
+
+    <footer class="credit">
+      <div>
+        <p class="credit-team">Developed by the MVCRP research team</p>
+        <p class="credit-support">
+          <a href="https://github.com/A-nd-I/MVCRP-Minimum-Viable-Cross-Border-Response-Protocol-for-Agentic-AI-Incidents/blob/main/Eight%20governance-relevant%20incident%20and%20response%20events.xlsx" target="_blank" rel="noopener noreferrer">Supporting evidence and stress-test matrix</a>
+        </p>
+      </div>
+      <p class="credit-meta">MVCRP v1.0 · Interactive stress test · Local standalone artifact</p>
+    </footer>
+  </div>
+
+  <script>
+    (function () {
+      "use strict";
+
+      var EVENTS = {
+        1: {
+          title: "Containment escape",
+          question: "Does escape alone trigger cross-border coordination?",
+          story: "The agent leaves its initial environment. Is that alone enough to turn a local event into a cross-border incident?",
+          protocol: "Keep the graph local until there is a relevant cross-domain nexus or credible downstream exposure.",
+          result: "Activation threshold prevents premature international escalation.",
+          causal: { label: "LOCAL", tone: "muted" },
+          ops: { label: "ESCAPED", tone: "amber" },
+          coord: { label: "DORMANT", tone: "muted" },
+          nodes: { n1: "cyan", n2: null, n3: null },
+          segments: { s1: null, s2: null }
+        },
+        2: {
+          title: "Intermediary compromise",
+          question: "Who controls the affected workload?",
+          story: "A simulated Colombian operator workload is affected. The operator can act locally, but cannot yet establish the complete causal chain.",
+          protocol: "Route to the competent operator or existing CERT relationship; preserve evidence and keep the three state dimensions separate.",
+          result: "Action can begin without collapsing uncertainty.",
+          causal: { label: "DISPUTED", tone: "violet" },
+          ops: { label: "CONTAINING", tone: "cyan" },
+          coord: { label: "ACTIVE", tone: "cyan" },
+          nodes: { n1: "violet", n2: "violet", n3: null },
+          segments: { s1: "disputed", s2: null }
+        },
+        3: {
+          title: "Downstream targeting",
+          question: "Must ultimate attribution be resolved before defensive action?",
+          story: "Activity reaches a simulated Chinese operator environment. The downstream segment is actionable while ultimate origin remains contested.",
+          protocol: "The competent downstream operator can contain its own environment using the supported intermediary-to-downstream segment.",
+          result: "Claim-level confidence enables proportionate action.",
+          causal: { label: "MIXED", tone: "violet" },
+          ops: { label: "CONTAINING", tone: "cyan" },
+          coord: { label: "ACTIVE", tone: "cyan" },
+          nodes: { n1: null, n2: "cyan", n3: "cyan" },
+          segments: { s1: null, s2: "active" }
+        },
+        4: {
+          title: "Internal expansion",
+          question: "Does privilege escalation create a new cross-border segment?",
+          story: "Privilege escalation increases impact inside the simulated Chinese node, but it has not yet reached a separately governed domain.",
+          protocol: "Update local scope and severity within the downstream node. Create a new segment only if activity reaches another independently governed domain.",
+          result: "Local severity does not become upstream causal proof.",
+          causal: { label: "MIXED", tone: "violet" },
+          ops: { label: "ESCALATED", tone: "amber" },
+          coord: { label: "ACTIVE", tone: "cyan" },
+          nodes: { n1: null, n2: "cyan", n3: "amber" },
+          segments: { s1: null, s2: "escalated" }
+        },
+        5: {
+          title: "Distributed containment",
+          question: "Can any actor declare the whole incident contained?",
+          story: "Simulated U.S., Colombian and Chinese responders contain what they control at the same time.",
+          protocol: "Each actor records a scope-bounded containment assertion with residual risks and unresolved dependencies.",
+          result: "Local control is visible without global overclaiming.",
+          causal: { label: "MIXED", tone: "violet" },
+          ops: { label: "PARTIAL", tone: "amber" },
+          coord: { label: "ACTIVE", tone: "cyan" },
+          nodes: { n1: "green", n2: "cyan", n3: "cyan" },
+          segments: { s1: "contained", s2: "active" }
+        },
+        6: {
+          title: "Causal reconstruction",
+          question: "Can the complete chain be assessed without centralized raw evidence?",
+          story: "No participant holds every log, timestamp or forensic artifact.",
+          protocol: "Compose attributable analytical claims from linked component claims, holders, correlation methods and explicit limitations.",
+          result: "The causal chain remains inspectable, not assumed.",
+          causal: { label: "SUPPORTED", tone: "green" },
+          ops: { label: "VERIFYING", tone: "cyan" },
+          coord: { label: "ACTIVE", tone: "cyan" },
+          nodes: { n1: "cyan", n2: "cyan", n3: "cyan" },
+          segments: { s1: "active", s2: "active" }
+        },
+        7: {
+          title: "Evidence exchange",
+          question: "What if restricted evidence cannot be transferred?",
+          story: "The simulated Chinese operator cannot transfer restricted forensic material directly, but the evidence remains preserved locally.",
+          protocol: "Record the request, restriction, partial exchange and preservation; continue legally permissible defensive coordination.",
+          result: "Restrictions become visible coordination state.",
+          causal: { label: "SUPPORTED", tone: "green" },
+          ops: { label: "VERIFYING", tone: "cyan" },
+          coord: { label: "RESTRICTED", tone: "amber" },
+          nodes: { n1: null, n2: "cyan", n3: "amber" },
+          segments: { s1: null, s2: "escalated" }
+        },
+        8: {
+          title: "Verification and recurrence",
+          question: "Does similar later activity automatically reopen the old incident?",
+          story: "Later behavior resembles the earlier event but has not been sufficiently linked to the original causal graph.",
+          protocol: "Reopen the original incident only with sufficient linkage; otherwise create a related or independent candidate incident and act proportionately.",
+          result: "Closure is evidence-based and recurrence is not assumed.",
+          causal: { label: "UNRESOLVED", tone: "violet" },
+          ops: { label: "VERIFYING", tone: "cyan" },
+          coord: { label: "ACTIVE", tone: "cyan" },
+          nodes: { n1: "green", n2: "cyan", n3: "cyan" },
+          segments: { s1: null, s2: null }
+        }
+      };
+
+      var SEG_FLOW_TONE = {
+        active: "cyan",
+        disputed: "violet",
+        escalated: "amber",
+        contained: "green"
+      };
+
+      var els = {
+        causal: document.getElementById("state-causal"),
+        ops: document.getElementById("state-ops"),
+        coord: document.getElementById("state-coord"),
+        counter: document.getElementById("event-counter"),
+        progress: document.getElementById("timeline-progress"),
+        kicker: document.getElementById("detail-kicker"),
+        title: document.getElementById("detail-title"),
+        question: document.getElementById("detail-question"),
+        story: document.getElementById("detail-story"),
+        protocol: document.getElementById("detail-protocol"),
+        result: document.getElementById("detail-result"),
+        n1: document.getElementById("node-n1"),
+        n2: document.getElementById("node-n2"),
+        n3: document.getElementById("node-n3"),
+        s1: document.getElementById("path-s1"),
+        s2: document.getElementById("path-s2"),
+        flow1: document.getElementById("flow-s1"),
+        flow2: document.getElementById("flow-s2"),
+        buttons: document.querySelectorAll(".tl-btn")
+      };
+
+      function isCompactTimeline() {
+        return window.matchMedia("(max-width: 820px)").matches;
+      }
+
+      function setProgress(id) {
+        var pct = ((id - 1) / 7) * 100;
+        if (isCompactTimeline()) {
+          els.progress.style.height = "2px";
+          els.progress.style.width = pct + "%";
+        } else {
+          els.progress.style.width = "2px";
+          els.progress.style.height = pct + "%";
+        }
+      }
+
+      function setStateValue(el, info) {
+        el.textContent = info.label;
+        el.setAttribute("data-tone", info.tone);
+      }
+
+      function setNode(el, tone) {
+        el.classList.remove("active", "idle", "tone-cyan", "tone-violet", "tone-green", "tone-amber");
+        if (tone) {
+          el.classList.add("active", "tone-" + tone);
+        } else {
+          el.classList.add("idle");
+        }
+      }
+
+      function setSegment(pathEl, flowEl, mode) {
+        pathEl.classList.remove("active", "disputed", "escalated", "contained");
+        flowEl.classList.remove("on", "cyan", "violet", "amber", "green");
+        if (!mode) return;
+        pathEl.classList.add(mode === "active" ? "active" : mode);
+        flowEl.classList.add("on", SEG_FLOW_TONE[mode]);
+      }
+
+      var currentId = 1;
+
+      function selectEvent(id) {
+        var event = EVENTS[id];
+        if (!event) return;
+        currentId = id;
+
+        setStateValue(els.causal, event.causal);
+        setStateValue(els.ops, event.ops);
+        setStateValue(els.coord, event.coord);
+
+        setNode(els.n1, event.nodes.n1);
+        setNode(els.n2, event.nodes.n2);
+        setNode(els.n3, event.nodes.n3);
+
+        setSegment(els.s1, els.flow1, event.segments.s1);
+        setSegment(els.s2, els.flow2, event.segments.s2);
+
+        els.kicker.textContent = "E" + id + " · Stress event";
+        els.title.textContent = event.title;
+        els.question.textContent = event.question;
+        els.story.textContent = event.story;
+        els.protocol.textContent = event.protocol;
+        els.result.textContent = event.result;
+        els.counter.textContent = "Event " + id + " of 8";
+
+        setProgress(id);
+
+        for (var i = 0; i < els.buttons.length; i++) {
+          var btn = els.buttons[i];
+          var pressed = Number(btn.getAttribute("data-event")) === id;
+          btn.setAttribute("aria-pressed", pressed ? "true" : "false");
+        }
+      }
+
+      for (var i = 0; i < els.buttons.length; i++) {
+        (function (btn) {
+          btn.addEventListener("click", function () {
+            selectEvent(Number(btn.getAttribute("data-event")));
+          });
+          btn.addEventListener("keydown", function (e) {
+            if (e.key === " " || e.key === "Enter") {
+              e.preventDefault();
+              selectEvent(Number(btn.getAttribute("data-event")));
+            }
+          });
+        })(els.buttons[i]);
+      }
+
+      window.addEventListener("resize", function () {
+        setProgress(currentId);
+      });
+
+      selectEvent(1);
+    })();
+  </script>
+</body>
+</html>
